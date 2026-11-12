@@ -1,12 +1,15 @@
+
 name: Deploy Lambda
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "lambda_function.py"
       - "requirements.txt"
       - ".github/workflows/deploy-lambda.yml"
+
   workflow_dispatch:
 
 permissions:
@@ -16,6 +19,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -37,13 +41,14 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Deploy function code
         run: |
           cd package
           zip -r ../lambda-deployment.zip .
           cd ..
+
           aws lambda update-function-code \
-            --function-name "${{ vars.LAMBDA_FUNCTION_NAME }}" \
+            --function-name "CloudMediaHandler" \
             --zip-file fileb://lambda-deployment.zip
