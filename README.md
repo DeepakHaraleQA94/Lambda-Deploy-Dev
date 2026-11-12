@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CloudMedia Lambda deployment starter
 
 This repository keeps the Lambda source code as normal, unzipped files. GitHub Actions creates the deployment ZIP automatically and updates the existing Lambda function after a push to `main`.
@@ -59,3 +60,7 @@ After deployment, invoke the function with an API Gateway HTTP API event for `GE
 ```
 
 A successful response reports the DynamoDB table statuses and S3 bucket connectivity. This is a starter health-check API, not the complete user/media/playlist access-management application.
+=======
+# Lambda-Deploy-Dev
+AWS Lambda deployment using GitHub Actions
+>>>>>>> c04b436858d45b31e8662643f5e5e6eb507a9eb3
