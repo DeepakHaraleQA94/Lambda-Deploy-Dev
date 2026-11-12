@@ -1,0 +1,49 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lambda_function.py"
+      - "requirements.txt"
+      - ".github/workflows/deploy-lambda.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          mkdir -p package
+          if [ -s requirements.txt ]; then
+            python -m pip install -r requirements.txt -t package
+          fi
+          cp lambda_function.py package/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy function code
+        run: |
+          cd package
+          zip -r ../lambda-deployment.zip .
+          cd ..
+          aws lambda update-function-code \
+            --function-name "${{ vars.LAMBDA_FUNCTION_NAME }}" \
+            --zip-file fileb://lambda-deployment.zip
