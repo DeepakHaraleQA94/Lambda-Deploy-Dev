@@ -1,4 +1,3 @@
-
 name: Deploy Lambda
 
 on:
@@ -6,7 +5,8 @@ on:
     branches:
       - main
     paths:
-      - "lambda_function.py"
+      - "*.py"
+      - "**/*.py"
       - "requirements.txt"
       - ".github/workflows/deploy-lambda.yml"
 
@@ -35,7 +35,10 @@ jobs:
           if [ -s requirements.txt ]; then
             python -m pip install -r requirements.txt -t package
           fi
-          cp lambda_function.py package/
+          cp ./*.py package/
+
+      - name: Validate Python files
+        run: python -m compileall -q package
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,7 +51,6 @@ jobs:
           cd package
           zip -r ../lambda-deployment.zip .
           cd ..
-
           aws lambda update-function-code \
             --function-name "CloudMediaHandler" \
             --zip-file fileb://lambda-deployment.zip
