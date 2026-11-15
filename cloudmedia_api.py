@@ -1,47 +1,57 @@
-import hmac
 import json
 import logging
 import os
-from typing import Any, Dict
 
 import boto3
 
 from access_service import AccessService
+from auth_service import AuthService
 from base_service import ApiError
+from expiry_service import AccessExpiryService
 from media_service import MediaService
+from notification_service import NotificationService
 from playlist_service import PlaylistService
+from s3_service import S3MediaService
 from user_service import UserService
 
 logger = logging.getLogger(__name__)
 
 
 class CloudMediaAPI:
-    """Admin-key protected CRUD API for users, media, access, and playlists."""
+    """CloudMedia REST API. Admin routes require an admin bearer token."""
 
     def __init__(self):
-        dynamodb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "ap-south-1"))
+        dynamodb = boto3.resource(
+            "dynamodb", region_name=os.environ.get("AWS_REGION", "ap-south-1")
+        )
+        self.users = UserService(dynamodb)
+        self.access = AccessService(dynamodb)
         self.services = {
-            "users": UserService(dynamodb),
+            "users": self.users,
             "media": MediaService(dynamodb),
-            "access": AccessService(dynamodb),
+            "access": self.access,
             "playlists": PlaylistService(dynamodb),
         }
+        self.auth = AuthService(self.users)
+        self.s3 = S3MediaService()
+        self.expiry = AccessExpiryService(self.access)
+        self.notifications = NotificationService()
 
     @staticmethod
-    def _response(status: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _response(status, data):
         return {
             "statusCode": status,
             "headers": {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Admin-Api-Key",
+                "Access-Control-Allow-Headers": "Content-Type,Authorization",
                 "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
             },
             "body": json.dumps(data),
         }
 
     @staticmethod
-    def _body(event: Dict[str, Any]) -> Dict[str, Any]:
+    def _body(event):
         raw = event.get("body")
         if not raw:
             return {}
@@ -56,17 +66,20 @@ class CloudMediaAPI:
             raise ApiError(400, "Request body must be a JSON object")
         return body
 
-    @staticmethod
-    def _authorize(event: Dict[str, Any]) -> None:
-        expected = os.environ.get("ADMIN_API_KEY")
-        if not expected:
-            raise ApiError(503, "API is not configured: set ADMIN_API_KEY in Lambda environment variables")
+    def _claims(self, event):
         headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
-        supplied = headers.get("x-admin-api-key", "")
-        if not supplied or not hmac.compare_digest(str(supplied), expected):
-            raise ApiError(401, "Unauthorized")
+        auth_header = headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            raise ApiError(401, "Bearer token required")
+        return self.auth.verify_token(auth_header[7:].strip())
 
-    def handle(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    def _admin(self, event):
+        claims = self._claims(event)
+        if claims.get("role") != "admin":
+            raise ApiError(403, "Administrator access required")
+        return claims
+
+    def handle(self, event):
         method = (
             event.get("requestContext", {}).get("http", {}).get("method")
             or event.get("httpMethod") or "GET"
@@ -76,14 +89,45 @@ class CloudMediaAPI:
             return self._response(200, {"message": "CORS preflight OK"})
 
         try:
-            self._authorize(event)
             body = self._body(event)
             query = event.get("queryStringParameters") or {}
             parts = [part for part in path.split("/") if part]
-            if not parts:
-                raise ApiError(404, "Route not found")
+            route = [part.lower() for part in parts]
 
-            resource = parts[0].lower()
+            # Public login; the configured bootstrap administrator can log in from env vars.
+            if route == ["auth", "login"] and method == "POST":
+                return self._response(200, self.auth.login(body.get("username"), body.get("password")))
+
+            if route == ["auth", "me"] and method == "GET":
+                claims = self._claims(event)
+                return self._response(200, {"userId": claims["sub"], "role": claims["role"]})
+
+            if route == ["access", "check"] and method == "GET":
+                claims = self._claims(event)
+                user_id = query.get("userId") or claims.get("sub")
+                if claims.get("role") != "admin" and user_id != claims.get("sub"):
+                    raise ApiError(403, "You can only check your own access")
+                media_id = query.get("mediaID")
+                if not media_id:
+                    raise ApiError(400, "mediaID query parameter is required")
+                return self._response(200, self.expiry.check_user_access(user_id, media_id))
+
+            self._admin(event)
+
+            if route == ["media", "upload-url"] and method == "POST":
+                return self._response(200, self.s3.create_upload_url(
+                    body.get("filename"), body.get("mediaType"), body.get("contentType")
+                ))
+            if route == ["media", "playback-url"] and method == "POST":
+                return self._response(200, self.s3.create_playback_url(body.get("objectKey")))
+            if route == ["notifications", "expiry"] and method == "POST":
+                return self._response(200, self.notifications.send_expiry_notice(
+                    body.get("email"), body.get("username", "")
+                ))
+
+            if not route:
+                raise ApiError(404, "Route not found")
+            resource = route[0]
             service = self.services.get(resource)
             if service is None:
                 raise ApiError(404, "Route not found")
