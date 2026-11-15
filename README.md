@@ -18,6 +18,7 @@ expiry_service.py        Access expiry evaluation
 notification_service.py  SES expiry email helper
 infrastructure/
   playlists-table.yml    CloudFormation template for playlist table
+  expiry-schedule.yml   CloudFormation template for daily expiry worker
 ```
 
 ## Existing DynamoDB key schema
@@ -29,7 +30,7 @@ infrastructure/
 | CloudMedia-Access-DEV | userId (String) | mediaID (String) |
 | CloudMedia-Playlists-DEV | playlistId (String) | — |
 
-The first three tables were confirmed in the AWS console. The playlist table is a new resource: deploy `infrastructure/playlists-table.yml` in CloudFormation before using playlist endpoints.
+The first three tables were confirmed in the AWS console. The playlist table is a new resource: deploy `infrastructure/playlists-table.yml` in CloudFormation before using playlist endpoints. Deploy `infrastructure/expiry-schedule.yml` separately with the existing Lambda ARN to enable daily expiry processing.
 
 ## Required Lambda environment variables
 
@@ -94,7 +95,7 @@ The code deployment role used by GitHub Actions is separate and only deploys the
 
 ## Expiry and notifications
 
-`GET /access/check` evaluates `expiresAt` (ISO-8601 timestamp) and changes expired records to `EXPIRED`. `POST /notifications/expiry` sends an email when called by an administrator. A recurring EventBridge schedule/worker for automatic daily expiry scans still needs to be provisioned and wired; the email helper alone does not send scheduled notifications.
+`GET /access/check` evaluates `expiresAt` (ISO-8601 timestamp) and changes expired records to `EXPIRED`. `POST /notifications/expiry` sends an email when called by an administrator. The daily worker is wired into the Lambda handler for EventBridge events. Deploy `infrastructure/expiry-schedule.yml` with the existing Lambda ARN to activate the daily schedule. SES sender verification and `ses:SendEmail` permission are required for email delivery.
 
 ## Deployment
 
