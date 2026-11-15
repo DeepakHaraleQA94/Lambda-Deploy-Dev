@@ -17,7 +17,8 @@
         "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Users-DEV",
         "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Media-DEV",
         "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Access-DEV",
-        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Playlists-DEV"
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Playlists-DEV",
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Locations-DEV"
       ]
     },
     {
