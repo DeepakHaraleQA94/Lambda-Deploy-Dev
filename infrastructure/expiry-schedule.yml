@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Daily CloudMedia access expiry and notification schedule
+Parameters:
+  LambdaFunctionArn:
+    Type: String
+    Description: ARN of the existing CloudMediaHandler Lambda function
+Resources:
+  CloudMediaExpiryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: CloudMedia-Daily-Access-Expiry
+      Description: Runs the CloudMedia access expiry worker once daily
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Id: CloudMediaExpiryLambdaTarget
+          Arn: !Ref LambdaFunctionArn
+          Input: '{"source":"aws.events","detail-type":"Scheduled Event"}'
+  AllowEventBridgeInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CloudMediaExpiryRule.Arn
+Outputs:
+  ExpiryRuleArn:
+    Value: !GetAtt CloudMediaExpiryRule.Arn
