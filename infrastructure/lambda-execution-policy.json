@@ -45,6 +45,14 @@
         "ses:SendEmail"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "CloudMediaProfileFaceQualityCheck",
+      "Effect": "Allow",
+      "Action": [
+        "rekognition:DetectFaces"
+      ],
+      "Resource": "*"
     }
   ]
 }
