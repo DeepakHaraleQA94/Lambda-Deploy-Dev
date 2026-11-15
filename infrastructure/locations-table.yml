@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudMedia country-state-city dropdown catalog
+Resources:
+  CloudMediaLocations:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CloudMedia-Locations-DEV
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: countryState
+          AttributeType: S
+        - AttributeName: cityName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: countryState
+          KeyType: HASH
+        - AttributeName: cityName
+          KeyType: RANGE
+Outputs:
+  LocationTableName:
+    Value: !Ref CloudMediaLocations
