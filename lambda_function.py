@@ -6,6 +6,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from cloudmedia_api import CloudMediaAPI
+from notification_service import NotificationService
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -34,8 +35,13 @@ def response(status_code, payload):
 
 
 def lambda_handler(event, context):
-    """CloudMedia Lambda entry point. GET /health is public; CRUD routes require admin API key."""
+    """HTTP API entry point plus EventBridge expiry worker."""
     event = event or {}
+
+    # EventBridge scheduled invocation (not an HTTP/API Gateway request).
+    if event.get("source") == "aws.events":
+        result = NotificationService(dynamodb=dynamodb).process_expired_access()
+        return {"statusCode": 200, "body": json.dumps(result)}
     method = (
         event.get("requestContext", {}).get("http", {}).get("method")
         or event.get("httpMethod")
