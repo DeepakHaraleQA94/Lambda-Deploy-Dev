@@ -102,6 +102,20 @@ class CloudMediaAPI:
                 claims = self._claims(event)
                 return self._response(200, {"userId": claims["sub"], "role": claims["role"]})
 
+            # Users may request playback only for media to which their access is active.
+            if route == ["media", "playback-url"] and method == "POST":
+                claims = self._claims(event)
+                media_id = body.get("mediaID")
+                if not media_id:
+                    raise ApiError(400, "mediaID is required")
+                user_id = body.get("userId") if claims.get("role") == "admin" else claims.get("sub")
+                if claims.get("role") != "admin":
+                    access_result = self.expiry.check_user_access(user_id, media_id)
+                    if not access_result.get("allowed"):
+                        raise ApiError(403, "Media access is missing or expired")
+                media_item = self.services["media"].get(media_id)
+                return self._response(200, self.s3.create_playback_url(media_item.get("objectKey")))
+
             if route == ["access", "check"] and method == "GET":
                 claims = self._claims(event)
                 user_id = query.get("userId") or claims.get("sub")
@@ -118,8 +132,6 @@ class CloudMediaAPI:
                 return self._response(200, self.s3.create_upload_url(
                     body.get("filename"), body.get("mediaType"), body.get("contentType")
                 ))
-            if route == ["media", "playback-url"] and method == "POST":
-                return self._response(200, self.s3.create_playback_url(body.get("objectKey")))
             if route == ["notifications", "expiry"] and method == "POST":
                 return self._response(200, self.notifications.send_expiry_notice(
                     body.get("email"), body.get("username", "")
