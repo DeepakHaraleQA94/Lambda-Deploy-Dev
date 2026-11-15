@@ -8,6 +8,7 @@ from boto3.dynamodb.conditions import Attr
 
 from base_service import ApiError, json_safe
 from s3_service import S3MediaService
+from location_service import LocationService
 
 
 class ProfileService:
@@ -17,6 +18,8 @@ class ProfileService:
         "firstName", "middleName", "lastName", "qualification", "currentAddress",
         "permanentAddress", "mobileNumber", "alternativeMobileNumber", "passingYear",
         "designation", "yearGap", "previousCompanyName", "previousCompanyAddress",
+        "currentCountryCode", "currentStateCode", "currentCity",
+        "permanentCountryCode", "permanentStateCode", "permanentCity",
         "aadhaarDocumentKey", "panDocumentKey", "degreeDocumentKeys",
         "profilePhotoKey", "passportPhotoKey", "profileUpdatedAt",
     }
@@ -38,6 +41,7 @@ class ProfileService:
             "rekognition", region_name=os.environ.get("AWS_REGION", "ap-south-1")
         )
         self.bucket = self.s3.bucket
+        self.locations = LocationService()
 
     def _has_active_access(self, user_id):
         params = {"FilterExpression": Attr("userId").eq(user_id)}
@@ -89,6 +93,20 @@ class ProfileService:
             year = int(changes["passingYear"])
             if year < 1950 or year > datetime.now().year + 1:
                 raise ApiError(400, "passingYear is outside the allowed range")
+        # Validate hierarchical current/permanent address selections.
+        for prefix in ("current", "permanent"):
+            keys = (prefix + "CountryCode", prefix + "StateCode", prefix + "City")
+            if any(key in changes for key in keys):
+                merged = dict(self._profile(user_id))
+                merged.update(changes)
+                if not all(merged.get(key) for key in keys):
+                    raise ApiError(400, "Select country, state and city for " + prefix + " address")
+                selected = self.locations.validate_selection(
+                    merged[keys[0]], merged[keys[1]], merged[keys[2]]
+                )
+                changes[keys[0]] = selected["countryCode"]
+                changes[keys[1]] = selected["stateCode"]
+                changes[keys[2]] = selected["city"]
         current = self._profile(user_id)
         current.update(changes)
         current["profileUpdatedAt"] = datetime.now(timezone.utc).isoformat()
