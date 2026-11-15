@@ -1,5 +1,6 @@
 import os
 import boto3
+from boto3.dynamodb.conditions import Attr
 
 from base_service import ApiError, DynamoService, json_safe
 
@@ -15,15 +16,17 @@ class UserService(DynamoService):
         super().__init__(table, partition_key="userId")
 
     def find_by_username(self, username: str):
-        # Username currently has no GSI in the supplied table schema; scan is correct
-        # for the present schema but should be replaced with a UsernameIndex at scale.
-        result = self.table.scan(
-            FilterExpression="#username = :username",
-            ExpressionAttributeNames={"#username": "username"},
-            ExpressionAttributeValues={":username": username},
-            Limit=2,
-        )
-        return result.get("Items", [])
+        # The currently deployed table has no username GSI. Scan all pages until
+        # a match is found; add a UsernameIndex GSI before production-scale use.
+        items = []
+        params = {"FilterExpression": Attr("username").eq(username)}
+        while True:
+            result = self.table.scan(**params)
+            items.extend(result.get("Items", []))
+            if items or "LastEvaluatedKey" not in result:
+                break
+            params["ExclusiveStartKey"] = result["LastEvaluatedKey"]
+        return items
 
     @staticmethod
     def _public(item):
@@ -43,6 +46,7 @@ class UserService(DynamoService):
     def create_user(self, item):
         if not isinstance(item, dict):
             raise ApiError(400, "A JSON object is required")
+        item = dict(item)
         if not item.get("username") or not item.get("password"):
             raise ApiError(400, "username and password are required")
         if self.find_by_username(item["username"]):
