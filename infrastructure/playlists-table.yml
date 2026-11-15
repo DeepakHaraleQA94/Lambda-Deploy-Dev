@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudMedia playlist metadata table
+Resources:
+  CloudMediaPlaylists:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CloudMedia-Playlists-DEV
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: playlistId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: playlistId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+Outputs:
+  PlaylistTableName:
+    Description: CloudMedia playlist table name
+    Value: !Ref CloudMediaPlaylists
