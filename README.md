@@ -117,3 +117,21 @@ A push to `main` that changes a root Python file, `requirements.txt`, or the wor
 ## Important validation status
 
 The workflow proves that the Python files compile and the Lambda code update command succeeds. It does not prove every API route works against live AWS resources. Before end-to-end testing, configure the Lambda environment variables, create the playlist table, and update the Lambda execution role permissions described above. API Gateway routes must also forward the paths and HTTP methods to this Lambda.
+
+## Web frontend
+
+The React/Vite admin and user portal is in `frontend/`. It includes sign-in, admin overview, user creation, access grants, profile editing, cascading current/permanent address selectors, private document upload, and active-access document viewing.
+
+Run locally:
+
+```bash
+cd frontend
+cp .env.example .env.local
+# Set VITE_API_BASE_URL in .env.local to your API Gateway URL
+npm install
+npm run dev
+```
+
+Build with `npm run build`; output is `frontend/dist/`. GitHub Actions validates the frontend build and uploads the dist folder as a workflow artifact. Hosting is not automatic yet: configure an S3/CloudFront hosting destination and deployment credentials before publishing the UI. Configure API Gateway CORS for the frontend origin and S3 bucket CORS for browser PUT uploads.
+
+For city options, create `CloudMedia-Locations-DEV` from `infrastructure/locations-table.yml`, then import your city CSV using `python scripts/import_cities.py path/to/cities.csv`. CSV columns are `countryState,cityName`, with state identifiers such as `IN-MH`. The checked-in CSV is only a small sample; populate a complete maintained city dataset before production use.
