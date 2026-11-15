@@ -1,0 +1,50 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudMediaDynamoDBCrud",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Users-DEV",
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Media-DEV",
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Access-DEV",
+        "arn:aws:dynamodb:ap-south-1:599128160659:table/CloudMedia-Playlists-DEV"
+      ]
+    },
+    {
+      "Sid": "CloudMediaS3MediaObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::cloudmedia-assets-dev-01"
+    },
+    {
+      "Sid": "CloudMediaS3ObjectOperations",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::cloudmedia-assets-dev-01/*"
+    },
+    {
+      "Sid": "CloudMediaExpiryEmail",
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
