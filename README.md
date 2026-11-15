@@ -85,17 +85,13 @@ User creation JSON includes `userId`, `username`, `password`, and optional `emai
 
 ## AWS permissions still required on the Lambda execution role
 
-The Lambda execution role (not the GitHub Actions deployment role) needs:
-- DynamoDB read/write/query/scan permissions for the four CloudMedia tables.
-- S3 `s3:PutObject`, `s3:GetObject`, and `s3:ListBucket` for the media bucket and its objects.
-- SES `ses:SendEmail` (and optionally `ses:SendRawEmail`) for the verified sender identity.
-- Standard CloudWatch Logs permissions.
+The Lambda execution role (not the GitHub Actions deployment role) needs the permissions listed in `infrastructure/lambda-execution-policy.json`. Review the resource ARNs and attach the policy to the existing `CloudMedia_Lambda_Execution_DEV_Role`. Keep `AWSLambdaBasicExecutionRole` (or equivalent CloudWatch Logs permissions) attached as well.
 
 The code deployment role used by GitHub Actions is separate and only deploys the Lambda code.
 
 ## Expiry and notifications
 
-`GET /access/check` evaluates `expiresAt` (ISO-8601 timestamp) and changes expired records to `EXPIRED`. `POST /notifications/expiry` sends an email when called by an administrator. The daily worker is wired into the Lambda handler for EventBridge events. Deploy `infrastructure/expiry-schedule.yml` with the existing Lambda ARN to activate the daily schedule. SES sender verification and `ses:SendEmail` permission are required for email delivery.
+`GET /access/check` evaluates `expiresAt` (ISO-8601 timestamp) and changes expired records to `EXPIRED`. `POST /notifications/expiry` sends an email when called by an administrator. The daily worker is wired into the Lambda handler for EventBridge events. Deploy `infrastructure/expiry-schedule.yml` with the existing Lambda ARN to activate the daily schedule. SES sender verification and `ses:SendEmail` permission are required for email delivery. The worker scans the access table, marks expired grants as `EXPIRED`, and sends one email per grant when the user has an email address and SES is configured.
 
 ## Deployment
 
