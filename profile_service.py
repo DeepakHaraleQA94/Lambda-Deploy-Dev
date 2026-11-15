@@ -19,7 +19,8 @@ class ProfileService:
         "permanentAddress", "mobileNumber", "alternativeMobileNumber", "passingYear",
         "designation", "yearGap", "previousCompanyName", "previousCompanyAddress",
         "currentCountryCode", "currentStateCode", "currentCity",
-        "permanentCountryCode", "permanentStateCode", "permanentCity",\n        "currentPostalCode", "permanentPostalCode",
+        "permanentCountryCode", "permanentStateCode", "permanentCity", 
+        "currentPostalCode", "permanentPostalCode",
         "aadhaarDocumentKey", "panDocumentKey", "degreeDocumentKeys",
         "profilePhotoKey", "passportPhotoKey", "profileUpdatedAt",
     }
