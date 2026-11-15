@@ -11,6 +11,7 @@ from expiry_service import AccessExpiryService
 from media_service import MediaService
 from notification_service import NotificationService
 from playlist_service import PlaylistService
+from profile_service import ProfileService
 from s3_service import S3MediaService
 from user_service import UserService
 
@@ -36,6 +37,7 @@ class CloudMediaAPI:
         self.s3 = S3MediaService()
         self.expiry = AccessExpiryService(self.access)
         self.notifications = NotificationService()
+        self.profiles = ProfileService(self.users, access_table=self.access.table, s3_service=self.s3)
 
     @staticmethod
     def _response(status, data):
@@ -102,6 +104,34 @@ class CloudMediaAPI:
                 claims = self._claims(event)
                 return self._response(200, {"userId": claims["sub"], "role": claims["role"]})
 
+            # A user can edit their own profile. Viewing profile data/documents is
+            # limited to active access; administrators can manage all profiles.
+            if route == ["profile"] and method in ("GET", "PATCH"):
+                claims = self._claims(event)
+                target_id = claims["sub"]
+                if method == "GET":
+                    return self._response(200, self.profiles.get_profile(target_id))
+                return self._response(200, self.profiles.update_profile(target_id, body))
+
+            if route == ["profile", "upload-url"] and method == "POST":
+                claims = self._claims(event)
+                return self._response(200, self.profiles.create_document_upload(
+                    claims["sub"], body.get("documentType"), body.get("filename"),
+                    body.get("contentType")
+                ))
+
+            if route == ["profile", "complete-upload"] and method == "POST":
+                claims = self._claims(event)
+                return self._response(200, self.profiles.complete_document_upload(
+                    claims["sub"], body.get("documentType"), body.get("objectKey")
+                ))
+
+            if route == ["profile", "document-url"] and method == "POST":
+                claims = self._claims(event)
+                return self._response(200, self.profiles.create_view_url(
+                    claims["sub"], claims["sub"], body.get("objectKey")
+                ))
+
             # Users may request playback only for media to which their access is active.
             if route == ["media", "playback-url"] and method == "POST":
                 claims = self._claims(event)
@@ -126,7 +156,21 @@ class CloudMediaAPI:
                     raise ApiError(400, "mediaID query parameter is required")
                 return self._response(200, self.expiry.check_user_access(user_id, media_id))
 
-            self._admin(event)
+            admin_claims = self._admin(event)
+
+            if len(route) == 3 and route[0] == "users" and route[2] == "profile":
+                target_id = parts[1]
+                if method == "GET":
+                    return self._response(200, self.profiles.get_profile(target_id, viewer_is_admin=True))
+                if method == "PATCH":
+                    return self._response(200, self.profiles.update_profile(target_id, body))
+                raise ApiError(405, "Method not allowed")
+
+            if route == ["profile", "admin-document-url"] and method == "POST":
+                return self._response(200, self.profiles.create_view_url(
+                    admin_claims["sub"], body.get("userId"), body.get("objectKey"),
+                    viewer_is_admin=True
+                ))
 
             if route == ["media", "upload-url"] and method == "POST":
                 return self._response(200, self.s3.create_upload_url(
