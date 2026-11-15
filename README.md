@@ -16,6 +16,7 @@ playlist_service.py      Playlist metadata CRUD
 s3_service.py            Presigned S3 upload/playback URLs
 expiry_service.py        Access expiry evaluation
 notification_service.py  SES expiry email helper
+profile_service.py       Private profile, documents and face photo quality checks
 infrastructure/
   playlists-table.yml    CloudFormation template for playlist table
   expiry-schedule.yml   CloudFormation template for daily expiry worker
@@ -51,6 +52,8 @@ Set these in Lambda → Configuration → Environment variables. Do not commit s
 | SES_FROM_EMAIL | Verified SES sender address for expiry email notifications |
 | S3_URL_TTL_SECONDS | Optional presigned URL lifetime; defaults to 300 |
 
+User profile fields include first/middle/last name, qualification, current/permanent address, mobile and alternate mobile, passing year, designation, year gap, previous company name/address. Aadhaar, PAN, degree certificates, profile photo and passport-size photo are uploaded directly to private S3 using short-lived presigned URLs. The backend stores object keys, not raw Aadhaar/PAN numbers. Profile photos must contain exactly one detectable face and meet basic sharpness/brightness/front-facing checks using Amazon Rekognition; this is a photo-quality check, not identity verification or face matching. Profile documents are viewable by the user only while at least one access grant is active; view links expire after five minutes. Administrators can view/update profiles using admin routes. Restrict admin access carefully and obtain user consent before collecting identity documents.
+
 The bootstrap admin is configured through environment variables. Normal users are created through the authenticated admin API. User passwords are PBKDF2-HMAC-SHA256 hashed before storage. Password hashes and salts are omitted from user API responses.
 
 ## API routes currently implemented
@@ -74,6 +77,12 @@ All routes except `GET /health`, `POST /auth/login`, and CORS preflight require 
 | GET/POST | /playlists | List/create playlists |
 | GET/PATCH/DELETE | /playlists/{playlistId} | Read/update/delete playlist |
 | POST | /notifications/expiry | Send one expiry email via SES |
+| GET/PATCH | /profile | View/update own profile while access is active for viewing |
+| POST | /profile/upload-url | Create private upload URL for Aadhaar/PAN/degree/profile/passport photo |
+| POST | /profile/complete-upload | Validate uploaded file and save its private object key |
+| POST | /profile/document-url | View own private profile document while access is active |
+| GET/PATCH | /users/{userId}/profile | Admin view/update a user's profile |
+| POST | /profile/admin-document-url | Admin view a user's private profile document |
 
 Send the login token in the `Authorization: Bearer <token>` header for protected endpoints. Login JSON body:
 
@@ -85,7 +94,7 @@ User creation JSON includes `userId`, `username`, `password`, and optional `emai
 
 ## AWS permissions still required on the Lambda execution role
 
-The Lambda execution role (not the GitHub Actions deployment role) needs the permissions listed in `infrastructure/lambda-execution-policy.json`. Review the resource ARNs and attach the policy to the existing `CloudMedia_Lambda_Execution_DEV_Role`. Keep `AWSLambdaBasicExecutionRole` (or equivalent CloudWatch Logs permissions) attached as well.
+The Lambda execution role (not the GitHub Actions deployment role) needs the permissions listed in `infrastructure/lambda-execution-policy.json`, including `rekognition:DetectFaces` for profile photo quality checks. Review the resource ARNs and attach the policy to the existing `CloudMedia_Lambda_Execution_DEV_Role`. Keep `AWSLambdaBasicExecutionRole` (or equivalent CloudWatch Logs permissions) attached as well.
 
 The code deployment role used by GitHub Actions is separate and only deploys the Lambda code.
 
