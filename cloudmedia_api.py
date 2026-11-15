@@ -14,6 +14,7 @@ from playlist_service import PlaylistService
 from profile_service import ProfileService
 from s3_service import S3MediaService
 from user_service import UserService
+from location_service import LocationService
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class CloudMediaAPI:
         self.expiry = AccessExpiryService(self.access)
         self.notifications = NotificationService()
         self.profiles = ProfileService(self.users, access_table=self.access.table, s3_service=self.s3)
+        self.locations = LocationService(dynamodb)
 
     @staticmethod
     def _response(status, data):
@@ -103,6 +105,20 @@ class CloudMediaAPI:
             if route == ["auth", "me"] and method == "GET":
                 claims = self._claims(event)
                 return self._response(200, {"userId": claims["sub"], "role": claims["role"]})
+
+            # Cascading location dropdown data for authenticated profile forms.
+            if route == ["locations", "countries"] and method == "GET":
+                self._claims(event)
+                return self._response(200, {"items": self.locations.countries()})
+            if route == ["locations", "states"] and method == "GET":
+                self._claims(event)
+                country_code = query.get("countryCode")
+                return self._response(200, {"items": self.locations.states(country_code)})
+            if route == ["locations", "cities"] and method == "GET":
+                self._claims(event)
+                return self._response(200, {"items": self.locations.cities_for_state(
+                    query.get("countryCode"), query.get("stateCode")
+                )})
 
             # A user can edit their own profile. Viewing profile data/documents is
             # limited to active access; administrators can manage all profiles.
